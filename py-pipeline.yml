@@ -1,0 +1,37 @@
+flow: ImagePipeline
+operators:
+  - id : PyOp
+    uri: file://./operators/operator.py
+    inputs:
+      - id: Data
+        type: usize
+    outputs:
+      - id: Data
+        type: usize
+sources:
+  - id : RandomGenerator
+    uri: file://./operators/source.py
+    configuration:
+      value: 0
+    output:
+        id: Random
+        type: usize
+sinks:
+  - id : PyPrint
+    uri: file://./operators/sink.py
+    input:
+        id: Data
+        type: usize
+links:
+- from:
+    node : RandomGenerator
+    output : Random
+  to:
+    node : PyOp
+    input : Data
+- from:
+    node : PyOp
+    output : Data
+  to:
+    node : PyPrint
+    input : Data

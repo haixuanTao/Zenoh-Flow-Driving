@@ -1,0 +1,58 @@
+---
+uuid: 00000000-0000-0000-0000-000000000000
+flow: RandomGeneration
+operators:
+  PyOp:
+    id: PyOp
+    inputs:
+      - port_id: Data
+        port_type: usize
+    outputs:
+      - port_id: Data
+        port_type: usize
+    uri: "file://./operators/operator.py"
+    configuration: ~
+    deadline: ~
+    runtime: foo
+    ciclo: ~
+sinks:
+  PyPrint:
+    id: PyPrint
+    input:
+      port_id: Data
+      port_type: usize
+    uri: "file://./operators/sink.py"
+    configuration: ~
+    runtime: foo
+sources:
+  RandomGenerator:
+    id: RandomGenerator
+    output:
+      port_id: Random
+      port_type: usize
+    period: ~
+    uri: "file://./operators/source.py"
+    configuration:
+      value: 0
+    runtime: foo
+connectors: []
+links:
+  - from:
+      node: RandomGenerator
+      output: Random
+    to:
+      node: PyOp
+      input: Data
+    size: ~
+    queueing_policy: ~
+    priority: ~
+  - from:
+      node: PyOp
+      output: Data
+    to:
+      node: PyPrint
+      input: Data
+    size: ~
+    queueing_policy: ~
+    priority: ~
+end_to_end_deadlines: ~
