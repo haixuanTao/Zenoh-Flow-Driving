@@ -26,7 +26,7 @@ class MySink(Sink):
 
     def run(self, _ctx, _state, input):
 
-        print(f"Received {np.frombuffer(input.data)}")
+        print(f"Received {np.frombuffer(input.data)[0][0]}")
 
 
 def register():

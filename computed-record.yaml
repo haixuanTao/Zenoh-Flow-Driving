@@ -1,6 +1,6 @@
 ---
 uuid: 00000000-0000-0000-0000-000000000000
-flow: RandomGeneration
+flow: ImagePipeline
 operators:
   PyOp:
     id: PyOp
