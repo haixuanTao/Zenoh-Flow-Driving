@@ -27,41 +27,70 @@ import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
 
-LANENET_MODEL_PATH = "/home/peter/Documents/FUTUREWEI/lanenet-lane-detection/models/lane_detection/lanenet/carla_town_1_2/tusimple"
-GPU_MEMORY_FRACTION = 0.1
+TRAFFIC_LIGHT_MODEL_PATH = "/home/peter/Documents/FUTUREWEI/pylot/dependencies/models/traffic_light_detection/faster-rcnn"
+TRAFFIC_LIGHT_DET_MIN_SCORE_THRESHOLD = 0.01
+HEIGHT = 1000
+WIDTH = 1000
+GPU_DEVICE = 0
+from enum import Enum
+
+
+class TrafficLightColor(Enum):
+    """Enum to represent the states of a traffic light."""
+
+    RED = 1
+    YELLOW = 2
+    GREEN = 3
+    OFF = 4
+
+    def get_label(self):
+        """Gets the label of a traffic light color.
+        Returns:
+            :obj:`str`: The label string.
+        """
+        if self.value == 1:
+            return "red traffic light"
+        elif self.value == 2:
+            return "yellow traffic light"
+        elif self.value == 3:
+            return "green traffic light"
+        else:
+            return "off traffic light"
+
+    def get_color(self):
+        if self.value == 1:
+            return [255, 0, 0]
+        elif self.value == 2:
+            return [255, 165, 0]
+        elif self.value == 3:
+            return [0, 255, 0]
+        else:
+            return [0, 0, 0]
 
 
 class MyState:
     def __init__(self, configuration):
-        tf.compat.v1.disable_eager_execution()
-        self._input_tensor = tf.compat.v1.placeholder(
-            dtype=tf.float32, shape=[1, 256, 512, 3], name="input_tensor"
+        # Only sets memory growth for flagged GPU
+        physical_devices = tf.config.experimental.list_physical_devices("GPU")
+        tf.config.experimental.set_visible_devices(
+            physical_devices[GPU_DEVICE], "GPU"
         )
-        net = lanenet.LaneNet(phase="test", cfg=CFG)
-        self._binary_seg_ret, self._instance_seg_ret = net.inference(
-            input_tensor=self._input_tensor, name="LaneNet"
+        tf.config.experimental.set_memory_growth(
+            physical_devices[GPU_DEVICE], True
         )
-        self._gpu_options = tf.compat.v1.GPUOptions(
-            allow_growth=True,
-            per_process_gpu_memory_fraction=GPU_MEMORY_FRACTION,
-            allocator_type="BFC",
-        )
-        self.sess = tf.compat.v1.Session(
-            config=tf.compat.v1.ConfigProto(
-                gpu_options=self._gpu_options, allow_soft_placement=True
-            )
-        )
-        with tf.compat.v1.variable_scope(name_or_scope="moving_avg"):
-            variable_averages = tf.train.ExponentialMovingAverage(0.9995)
-            variables_to_restore = variable_averages.variables_to_restore()
 
-        self._postprocessor = lanenet_postprocess.LaneNetPostProcessor()
-        saver = tf.compat.v1.train.Saver(variables_to_restore)
-        with self.sess.as_default():
-            saver.restore(
-                sess=self.sess,
-                save_path=LANENET_MODEL_PATH,
-            )
+        # Load the model from the saved_model format file.
+        self._model = tf.saved_model.load(TRAFFIC_LIGHT_MODEL_PATH)
+
+        self._labels = {
+            1: TrafficLightColor.GREEN,
+            2: TrafficLightColor.YELLOW,
+            3: TrafficLightColor.RED,
+            4: TrafficLightColor.OFF,
+        }
+        # Unique bounding box id. Incremented for each bounding box.
+        self._unique_id = 0
+        # Serve some junk image to load up the model.
 
 
 class MyOp(Operator):
@@ -79,46 +108,50 @@ class MyOp(Operator):
         return None
 
     def run(self, _ctx, _state, inputs):
-        # Getting the inputs
-        # data = inputs.get("Data").data
-        data = inputs.tobytes()
-        # Computing over the inputs
-        image = np.frombuffer(data, dtype=np.dtype("uint8"))
-        image = np.reshape(image, (23, 23, 4))[:, :, :3]
-        image = image / 127.5 - 1.0
-        image_vis = image
-        image = cv2.resize(image, (512, 256), interpolation=cv2.INTER_LINEAR)
-        resized_image = image
-        image = image / 127.5 - 1.0
+        data = inputs.get("Data").data
+        array = np.frombuffer(data, dtype=np.dtype("uint8"))
+        array = array.reshape((168, 299, 3))
+        image_np_expanded = np.expand_dims(array, axis=0)
 
-        binary_seg_image, instance_seg_image = _state.sess.run(
-            [_state._binary_seg_ret, _state._instance_seg_ret],
-            feed_dict={_state._input_tensor: [image]},
-        )
+        infer = _state._model.signatures["serving_default"]
+        result = infer(tf.convert_to_tensor(value=image_np_expanded))
 
-        postprocess_result = _state._postprocessor.postprocess(
-            binary_seg_result=binary_seg_image[0],
-            instance_seg_result=instance_seg_image[0],
-            source_image=image_vis,
-        )
-        print(postprocess_result)
-        mask_image = postprocess_result["mask_image"]
+        boxes = result["boxes"]
+        scores = result["scores"]
+        classes = result["classes"]
+        num_detections = result["detections"]
 
-        return cv2.addWeighted(
-            resized_image[:, :, (2, 1, 0)],
-            1,
-            mask_image[:, :, (2, 1, 0)],
-            0.3,
-            0,
-        ).tobytes()
+        num_detections = int(num_detections[0])
+        labels = [
+            _state._labels[int(label)] for label in classes[0][:num_detections]
+        ]
+        boxes = boxes[0][:num_detections]
+        scores = scores[0][:num_detections]
+
+        traffic_lights = []
+        for index in range(len(scores)):
+            if scores[index] > TRAFFIC_LIGHT_DET_MIN_SCORE_THRESHOLD:
+                bbox = [
+                    int(boxes[index][1] * WIDTH),  # x_min
+                    int(boxes[index][3] * WIDTH),  # x_max
+                    int(boxes[index][0] * HEIGHT),  # y_min
+                    int(boxes[index][2] * HEIGHT),  # y_max
+                    scores[index],
+                ]
+
+                traffic_lights.append(bbox)
+        print(scores[:5])
+        result = np.array(traffic_lights)
+        result = result.astype(np.float32)
+        return {"Data": result.tobytes()}
 
 
 def register():
     return MyOp
 
 
-op = MyOp([])
-conf = op.initialize([])
+# op = MyOp([])
+# conf = op.initialize([])
 
 
-op.run([], conf, np.zeros((23, 23, 4), dtype=np.dtype("uint8")))
+# op.run([], conf, np.zeros((23, 23, 3), dtype=np.dtype("uint8")))

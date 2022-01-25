@@ -15,11 +15,18 @@
 from zenoh_flow import Inputs, Outputs, Source
 import time
 import numpy as np
+import cv2
+
+IMAGE_PATH = (
+    "/home/peter/Documents/FUTUREWEI/zenoh-flow-driving/data/images.jpeg"
+)
 
 
 class MyState:
     def __init__(self, configuration):
-        self.value = np.zeros((2, 2))
+        src = cv2.imread(IMAGE_PATH)
+        dst = cv2.cvtColor(src, cv2.COLOR_BGR2RGB)
+        self.value = dst
 
 
 class MySrc(Source):
@@ -30,7 +37,7 @@ class MySrc(Source):
         return None
 
     def run(self, _ctx, state):
-        state.value += 1
+        print(state.value.shape)
         time.sleep(1)
         return state.value.tobytes()
 
