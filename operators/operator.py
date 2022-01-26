@@ -26,11 +26,12 @@ import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
+import matplotlib.patches as patches
 
 TRAFFIC_LIGHT_MODEL_PATH = "/home/peter/Documents/FUTUREWEI/pylot/dependencies/models/traffic_light_detection/faster-rcnn"
-TRAFFIC_LIGHT_DET_MIN_SCORE_THRESHOLD = 0.01
-HEIGHT = 1000
-WIDTH = 1000
+TRAFFIC_LIGHT_DET_MIN_SCORE_THRESHOLD = 0.05
+WIDTH = 1043
+HEIGHT = 587
 GPU_DEVICE = 0
 from enum import Enum
 
@@ -108,9 +109,10 @@ class MyOp(Operator):
         return None
 
     def run(self, _ctx, _state, inputs):
-        data = inputs.get("Data").data
-        array = np.frombuffer(data, dtype=np.dtype("uint8"))
-        array = array.reshape((168, 299, 3))
+        # data = inputs.get("Data").data
+        # array = np.frombuffer(data, dtype=np.dtype("uint8"))
+        array = inputs
+        array = array.reshape((587, 1043, 3))
         image_np_expanded = np.expand_dims(array, axis=0)
 
         infer = _state._model.signatures["serving_default"]
@@ -129,18 +131,36 @@ class MyOp(Operator):
         scores = scores[0][:num_detections]
 
         traffic_lights = []
+        fig, ax = plt.subplots()
+        ax.imshow(array)
         for index in range(len(scores)):
             if scores[index] > TRAFFIC_LIGHT_DET_MIN_SCORE_THRESHOLD:
                 bbox = [
-                    int(boxes[index][1] * WIDTH),  # x_min
-                    int(boxes[index][3] * WIDTH),  # x_max
-                    int(boxes[index][0] * HEIGHT),  # y_min
-                    int(boxes[index][2] * HEIGHT),  # y_max
+                    int(boxes[index][1] * HEIGHT),  # x_min
+                    int(boxes[index][3] * HEIGHT),  # x_max
+                    int(boxes[index][0] * WIDTH),  # y_min
+                    int(boxes[index][2] * WIDTH),  # y_max
                     scores[index],
                 ]
+                # Create a Rectangle patch
+                rect = patches.Rectangle(
+                    (
+                        int(boxes[index][1] * WIDTH),
+                        int(boxes[index][0] * HEIGHT),
+                    ),
+                    int((boxes[index][3] - boxes[index][1]) * WIDTH),
+                    int((boxes[index][2] - boxes[index][0]) * HEIGHT),
+                    linewidth=1,
+                    edgecolor="r",
+                    facecolor="none",
+                )
+                # Add the patch to the Axes
+                ax.add_patch(rect)
+                print(bbox)
 
                 traffic_lights.append(bbox)
-        print(scores[:5])
+        plt.show()
+
         result = np.array(traffic_lights)
         result = result.astype(np.float32)
         return {"Data": result.tobytes()}
@@ -154,4 +174,7 @@ def register():
 # conf = op.initialize([])
 
 
-# op.run([], conf, np.zeros((23, 23, 3), dtype=np.dtype("uint8")))
+# IMAGE_PATH = "/home/peter/Documents/FUTUREWEI/zenoh-flow-driving/data/panneau-feu-usa2.jpg"
+# src = cv2.imread(IMAGE_PATH)
+# dst = cv2.cvtColor(src, cv2.COLOR_BGR2RGB)
+# op.run([], conf, dst)

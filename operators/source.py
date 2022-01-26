@@ -17,9 +17,7 @@ import time
 import numpy as np
 import cv2
 
-IMAGE_PATH = (
-    "/home/peter/Documents/FUTUREWEI/zenoh-flow-driving/data/images.jpeg"
-)
+IMAGE_PATH = "/home/peter/Documents/FUTUREWEI/zenoh-flow-driving/data/panneau-feu-usa2.jpg"
 
 
 class MyState:
