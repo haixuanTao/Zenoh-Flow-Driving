@@ -15,20 +15,20 @@
 from zenoh_flow import Inputs, Outputs, Operator
 import time
 import numpy as np
-from lanenet_model import lanenet
-from lanenet_model import lanenet_postprocess
 from local_utils.config_utils import parse_config_utils
 from local_utils.log_util import init_logger
 
 CFG = parse_config_utils.lanenet_cfg
 LOG = init_logger.get_logger(log_file_name_prefix="lanenet_test")
 import cv2
-import matplotlib.pyplot as plt
+
 import numpy as np
 import tensorflow as tf
 import matplotlib.patches as patches
 
-TRAFFIC_LIGHT_MODEL_PATH = "/home/peter/Documents/FUTUREWEI/pylot/dependencies/models/traffic_light_detection/faster-rcnn"
+TRAFFIC_LIGHT_MODEL_PATH = (
+    "../pylot/dependencies/models/traffic_light_detection/faster-rcnn"
+)
 TRAFFIC_LIGHT_DET_MIN_SCORE_THRESHOLD = 0.05
 WIDTH = 1043
 HEIGHT = 587
@@ -73,8 +73,12 @@ class MyState:
     def __init__(self, configuration):
         # Only sets memory growth for flagged GPU
         physical_devices = tf.config.experimental.list_physical_devices("GPU")
-        tf.config.experimental.set_visible_devices(physical_devices[GPU_DEVICE], "GPU")
-        tf.config.experimental.set_memory_growth(physical_devices[GPU_DEVICE], True)
+        tf.config.experimental.set_visible_devices(
+            physical_devices[GPU_DEVICE], "GPU"
+        )
+        tf.config.experimental.set_memory_growth(
+            physical_devices[GPU_DEVICE], True
+        )
 
         # Load the model from the saved_model format file.
         self._model = tf.saved_model.load(TRAFFIC_LIGHT_MODEL_PATH)
@@ -105,9 +109,8 @@ class MyOp(Operator):
         return None
 
     def run(self, _ctx, _state, inputs):
-        # data = inputs.get("Data").data
-        # array = np.frombuffer(data, dtype=np.dtype("uint8"))
-        array = inputs
+        data = inputs.get("Data").data
+        array = np.frombuffer(data, dtype=np.dtype("uint8"))
         array = array.reshape((587, 1043, 3))
         image_np_expanded = np.expand_dims(array, axis=0)
 
@@ -120,7 +123,9 @@ class MyOp(Operator):
         num_detections = result["detections"]
 
         num_detections = int(num_detections[0])
-        labels = [_state._labels[int(label)] for label in classes[0][:num_detections]]
+        labels = [
+            _state._labels[int(label)] for label in classes[0][:num_detections]
+        ]
         boxes = boxes[0][:num_detections]
         scores = scores[0][:num_detections]
 
@@ -146,29 +151,13 @@ class MyOp(Operator):
                         int(boxes[index][3] * WIDTH),
                         int(boxes[index][2] * HEIGHT),
                     ),
-                    (0, 0, 255),
+                    (255, 0, 0),
                 )
 
                 traffic_lights.append(bbox)
-        fig, ax = plt.subplots()
-        ax.imshow(array)
-        plt.show()
 
-        result = np.array(traffic_lights)
-        result = result.astype(np.float32)
-        return {"Data": result.tobytes()}
+        return {"Data": array.tobytes()}
 
 
 def register():
     return MyOp
-
-
-op = MyOp([])
-
-
-IMAGE_PATH = (
-    "/home/peter/Documents/FUTUREWEI/zenoh-flow-driving/data/panneau-feu-usa2.jpg"
-)
-src = cv2.imread(IMAGE_PATH)
-dst = cv2.cvtColor(src, cv2.COLOR_BGR2RGB)
-op.run([], conf, dst)
