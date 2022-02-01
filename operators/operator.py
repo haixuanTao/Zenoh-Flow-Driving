@@ -15,8 +15,6 @@
 from zenoh_flow import Inputs, Outputs, Operator
 import time
 import numpy as np
-from lanenet_model import lanenet
-from lanenet_model import lanenet_postprocess
 from local_utils.config_utils import parse_config_utils
 from local_utils.log_util import init_logger
 
@@ -28,7 +26,7 @@ import numpy as np
 import tensorflow as tf
 import matplotlib.patches as patches
 
-TRAFFIC_LIGHT_MODEL_PATH = "/home/peter/Documents/FUTUREWEI/pylot/dependencies/models/traffic_light_detection/faster-rcnn"
+TRAFFIC_LIGHT_MODEL_PATH = "../pylot/dependencies/models/traffic_light_detection/faster-rcnn"
 TRAFFIC_LIGHT_DET_MIN_SCORE_THRESHOLD = 0.05
 WIDTH = 1043
 HEIGHT = 587
