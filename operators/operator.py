@@ -23,7 +23,7 @@ from local_utils.log_util import init_logger
 CFG = parse_config_utils.lanenet_cfg
 LOG = init_logger.get_logger(log_file_name_prefix="lanenet_test")
 import cv2
-import matplotlib.pyplot as plt
+
 import numpy as np
 import tensorflow as tf
 import matplotlib.patches as patches
@@ -109,9 +109,8 @@ class MyOp(Operator):
         return None
 
     def run(self, _ctx, _state, inputs):
-        # data = inputs.get("Data").data
-        # array = np.frombuffer(data, dtype=np.dtype("uint8"))
-        array = inputs
+        data = inputs.get("Data").data
+        array = np.frombuffer(data, dtype=np.dtype("uint8"))
         array = array.reshape((587, 1043, 3))
         image_np_expanded = np.expand_dims(array, axis=0)
 
@@ -131,8 +130,6 @@ class MyOp(Operator):
         scores = scores[0][:num_detections]
 
         traffic_lights = []
-        fig, ax = plt.subplots()
-        ax.imshow(array)
         for index in range(len(scores)):
             if scores[index] > TRAFFIC_LIGHT_DET_MIN_SCORE_THRESHOLD:
                 bbox = [
@@ -142,39 +139,25 @@ class MyOp(Operator):
                     int(boxes[index][2] * WIDTH),  # y_max
                     scores[index],
                 ]
-                # Create a Rectangle patch
-                rect = patches.Rectangle(
+
+                # Add the patch to the Axes
+                cv2.rectangle(
+                    array,
                     (
                         int(boxes[index][1] * WIDTH),
                         int(boxes[index][0] * HEIGHT),
                     ),
-                    int((boxes[index][3] - boxes[index][1]) * WIDTH),
-                    int((boxes[index][2] - boxes[index][0]) * HEIGHT),
-                    linewidth=1,
-                    edgecolor="r",
-                    facecolor="none",
+                    (
+                        int(boxes[index][3] * WIDTH),
+                        int(boxes[index][2] * HEIGHT),
+                    ),
+                    (255, 0, 0),
                 )
-                # Add the patch to the Axes
-                ax.add_patch(rect)
-                print(bbox)
 
                 traffic_lights.append(bbox)
-        plt.show()
 
-        result = np.array(traffic_lights)
-        result = result.astype(np.float32)
-        return {"Data": result.tobytes()}
+        return {"Data": array.tobytes()}
 
 
 def register():
     return MyOp
-
-
-# op = MyOp([])
-# conf = op.initialize([])
-
-
-# IMAGE_PATH = "/home/peter/Documents/FUTUREWEI/zenoh-flow-driving/data/panneau-feu-usa2.jpg"
-# src = cv2.imread(IMAGE_PATH)
-# dst = cv2.cvtColor(src, cv2.COLOR_BGR2RGB)
-# op.run([], conf, dst)

@@ -17,7 +17,7 @@ import time
 import numpy as np
 import cv2
 
-IMAGE_PATH = "/home/peter/Documents/FUTUREWEI/zenoh-flow-driving/data/panneau-feu-usa2.jpg"
+IMAGE_PATH = "./data/panneau-feu-usa2.jpg"
 
 
 class MyState:
@@ -35,7 +35,6 @@ class MySrc(Source):
         return None
 
     def run(self, _ctx, state):
-        print(state.value.shape)
         time.sleep(1)
         return state.value.tobytes()
 

@@ -15,6 +15,7 @@
 from zenoh_flow import Sink
 
 import numpy as np
+import cv2
 
 
 class MySink(Sink):
@@ -25,8 +26,13 @@ class MySink(Sink):
         return None
 
     def run(self, _ctx, _state, input):
-        data = np.frombuffer(input.data, dtype=np.dtype("float32"))
-        print(f"Received {data}")
+        array = np.frombuffer(input.data, dtype=np.uint8)
+
+        array = array.reshape((587, 1043, 3))
+        array = cv2.cvtColor(array, cv2.COLOR_RGB2BGR)
+        cv2.imshow("test", array)
+
+        cv2.waitKey(0)
 
 
 def register():
