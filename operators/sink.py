@@ -17,6 +17,8 @@ from zenoh_flow import Sink
 import numpy as np
 import cv2
 
+import operators.messages.trafficlight_pb2 as serializer
+
 
 class MySink(Sink):
     def initialize(self, configuration):
@@ -26,11 +28,18 @@ class MySink(Sink):
         return None
 
     def run(self, _ctx, _state, input):
-        array = np.frombuffer(input.data, dtype=np.uint8)
+        traffic_lights = serializer.TrafficLights()
+        traffic_lights.ParseFromString(input.data)
+        for traffic_light in traffic_lights.traffic_light:
 
-        array = array.reshape((587, 1043, 3))
-        array = cv2.cvtColor(array, cv2.COLOR_RGB2BGR)
-        cv2.imshow("test", array)
+            array = np.frombuffer(traffic_lights.image, dtype=np.uint8)
+            print(f"traffic light color {traffic_light.color}")
+            print(f"traffic light left {traffic_light.left}")
+            print(f"traffic light top {traffic_light.top}")
+            print(f"traffic light score {traffic_light.score}")
+            array = array.reshape((587, 1043, 3))
+            array = cv2.cvtColor(array, cv2.COLOR_RGB2BGR)
+            cv2.imshow("test", array)
 
         cv2.waitKey(0)
 

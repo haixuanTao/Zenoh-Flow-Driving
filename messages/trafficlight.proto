@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package traffic_light;
+
+message TrafficLights {
+  int32 id = 1;
+
+  message TrafficLight {
+    int32 id = 1;
+    float score = 2;
+    float top = 3;
+    float right = 4;
+    float bottom = 5;
+    float left = 6;
+
+    enum LightColor {
+      GREEN = 1;
+      YELLOW = 2;
+      RED = 3;
+      OFF = 4;
+    }
+
+    LightColor color = 7;
+  }
+
+  repeated TrafficLight traffic_light = 2;
+  bytes image = 3;
+}

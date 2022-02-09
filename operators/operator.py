@@ -13,58 +13,18 @@
 ##
 
 from zenoh_flow import Inputs, Outputs, Operator
-import time
-import numpy as np
-from local_utils.config_utils import parse_config_utils
-from local_utils.log_util import init_logger
-
-CFG = parse_config_utils.lanenet_cfg
-LOG = init_logger.get_logger(log_file_name_prefix="lanenet_test")
 import cv2
-
 import numpy as np
 import tensorflow as tf
-import matplotlib.patches as patches
+import operators.messages.trafficlight_pb2 as serializer
 
-TRAFFIC_LIGHT_MODEL_PATH = "../pylot/dependencies/models/traffic_light_detection/faster-rcnn"
-TRAFFIC_LIGHT_DET_MIN_SCORE_THRESHOLD = 0.05
+TRAFFIC_LIGHT_MODEL_PATH = (
+    "../pylot/dependencies/models/traffic_light_detection/faster-rcnn"
+)
+TRAFFIC_LIGHT_DET_MIN_SCORE_THRESHOLD = 0.001
 WIDTH = 1043
 HEIGHT = 587
 GPU_DEVICE = 0
-from enum import Enum
-
-
-class TrafficLightColor(Enum):
-    """Enum to represent the states of a traffic light."""
-
-    RED = 1
-    YELLOW = 2
-    GREEN = 3
-    OFF = 4
-
-    def get_label(self):
-        """Gets the label of a traffic light color.
-        Returns:
-            :obj:`str`: The label string.
-        """
-        if self.value == 1:
-            return "red traffic light"
-        elif self.value == 2:
-            return "yellow traffic light"
-        elif self.value == 3:
-            return "green traffic light"
-        else:
-            return "off traffic light"
-
-    def get_color(self):
-        if self.value == 1:
-            return [255, 0, 0]
-        elif self.value == 2:
-            return [255, 165, 0]
-        elif self.value == 3:
-            return [0, 255, 0]
-        else:
-            return [0, 0, 0]
 
 
 class MyState:
@@ -80,16 +40,12 @@ class MyState:
 
         # Load the model from the saved_model format file.
         self._model = tf.saved_model.load(TRAFFIC_LIGHT_MODEL_PATH)
-
         self._labels = {
-            1: TrafficLightColor.GREEN,
-            2: TrafficLightColor.YELLOW,
-            3: TrafficLightColor.RED,
-            4: TrafficLightColor.OFF,
+            1: serializer.TrafficLights.TrafficLight.LightColor.GREEN,
+            2: serializer.TrafficLights.TrafficLight.LightColor.YELLOW,
+            3: serializer.TrafficLights.TrafficLight.LightColor.RED,
+            4: serializer.TrafficLights.TrafficLight.LightColor.OFF,
         }
-        # Unique bounding box id. Incremented for each bounding box.
-        self._unique_id = 0
-        # Serve some junk image to load up the model.
 
 
 class MyOp(Operator):
@@ -127,16 +83,18 @@ class MyOp(Operator):
         boxes = boxes[0][:num_detections]
         scores = scores[0][:num_detections]
 
-        traffic_lights = []
+        traffic_lights = serializer.TrafficLights()
+        traffic_lights.id = 0
+
         for index in range(len(scores)):
             if scores[index] > TRAFFIC_LIGHT_DET_MIN_SCORE_THRESHOLD:
-                bbox = [
-                    int(boxes[index][1] * HEIGHT),  # x_min
-                    int(boxes[index][3] * HEIGHT),  # x_max
-                    int(boxes[index][0] * WIDTH),  # y_min
-                    int(boxes[index][2] * WIDTH),  # y_max
-                    scores[index],
-                ]
+                traffic_light = traffic_lights.traffic_light.add()
+                traffic_light.top = int(boxes[index][3] * WIDTH)
+                traffic_light.right = int(boxes[index][2] * WIDTH)
+                traffic_light.left = int(boxes[index][0] * WIDTH)
+                traffic_light.bottom = int(boxes[index][1] * WIDTH)
+                traffic_light.score = scores[index]
+                traffic_light.color = labels[index]
 
                 # Add the patch to the Axes
                 cv2.rectangle(
@@ -152,9 +110,9 @@ class MyOp(Operator):
                     (255, 0, 0),
                 )
 
-                traffic_lights.append(bbox)
+        traffic_lights.image = array.tobytes()
 
-        return {"Data": array.tobytes()}
+        return {"Data": traffic_lights.SerializeToString()}
 
 
 def register():
